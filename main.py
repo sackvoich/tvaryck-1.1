@@ -13,7 +13,7 @@ def load_source_image():
     source_image = face_recognition.load_image_file(source_image_path)
     source_face_landmarks = face_recognition.face_landmarks(source_image)
     if len(source_face_landmarks) == 0:
-        print("No faces found in the source image.")
+        print("No faces found in the source image")
         return None, None
     return source_image, source_face_landmarks[0]
 
