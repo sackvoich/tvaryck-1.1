@@ -45,6 +45,19 @@ def detect_faces_haar(frame, face_cascade):
     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
     return faces
 
+def get_available_cameras():
+    index = 0
+    cameras = []
+    while True:
+        cap = cv2.VideoCapture(index)
+        if not cap.read()[0]:
+            break
+        else:
+            cameras.append(index)
+        cap.release()
+        index += 1
+    return cameras
+
 if __name__ == "__main__":
     source_image, source_face_landmarks = load_source_image()
     if source_image is not None and source_face_landmarks is not None:

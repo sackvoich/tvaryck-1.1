@@ -1,5 +1,5 @@
 import sys
-from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLabel
+from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLabel, QComboBox
 from PySide6.QtGui import QPixmap, QImage
 from PySide6.QtCore import Qt, QTimer
 import cv2
@@ -7,7 +7,7 @@ import numpy as np
 import face_recognition
 
 # Импортируем функции из main.py
-from main import load_source_image, prepare_source_face, detect_faces_haar
+from main import load_source_image, prepare_source_face, detect_faces_haar, get_available_cameras
 
 class FaceSwapApp(QMainWindow):
     def __init__(self):
@@ -22,6 +22,10 @@ class FaceSwapApp(QMainWindow):
         self.video_label = QLabel("Video Feed")
         self.video_label.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.video_label)
+
+        self.camera_select = QComboBox()
+        self.layout.addWidget(self.camera_select)
+        self.populate_camera_select()
 
         self.load_source_button = QPushButton("Load Source Image")
         self.load_source_button.clicked.connect(self.load_source)
@@ -41,11 +45,23 @@ class FaceSwapApp(QMainWindow):
         self.source_mask = None
         self.source_points = None
 
-        self.video_capture = cv2.VideoCapture(0)
+        self.video_capture = None
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
 
         self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+    def populate_camera_select(self):
+        cameras = get_available_cameras()
+        for camera in cameras:
+            self.camera_select.addItem(f"Camera {camera}", camera)
+        self.camera_select.currentIndexChanged.connect(self.change_camera)
+
+    def change_camera(self):
+        if self.video_capture:
+            self.video_capture.release()
+        camera_index = self.camera_select.currentData()
+        self.video_capture = cv2.VideoCapture(camera_index)
 
     def load_source(self):
         self.source_image, self.source_face_landmarks = load_source_image()
@@ -57,12 +73,17 @@ class FaceSwapApp(QMainWindow):
         if self.source_image is None:
             print("Please load a source image first")
             return
+        if self.video_capture is None:
+            self.change_camera()
         self.timer.start(30)  # Update every 30 ms (approx. 33 fps)
 
     def stop_face_swap(self):
         self.timer.stop()
 
     def update_frame(self):
+        if self.video_capture is None:
+            return
+
         ret, frame = self.video_capture.read()
         if not ret:
             return
@@ -122,7 +143,8 @@ class FaceSwapApp(QMainWindow):
         self.video_label.setPixmap(pixmap.scaled(self.video_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
     def closeEvent(self, event):
-        self.video_capture.release()
+        if self.video_capture:
+            self.video_capture.release()
         super().closeEvent(event)
 
 def main():
