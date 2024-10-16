@@ -43,7 +43,8 @@ class FaceSwapApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Face Swap Application")
-        self.setGeometry(100, 100, 1000, 700)
+        # Увеличиваем размеры окна
+        self.setGeometry(100, 100, 1200, 800)  # Изменено с (1000, 700) на (1200, 800)
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -51,16 +52,26 @@ class FaceSwapApp(QMainWindow):
 
         # Верхняя часть: видео и индикатор
         self.video_layout = QHBoxLayout()
+
+        # Контейнер для видео и индикатора
+        self.video_container = QWidget()
+        self.video_container.setLayout(QHBoxLayout())
+        self.video_container.layout().setContentsMargins(0, 0, 0, 0)
+
         self.video_label = QLabel("Video Feed")
         self.video_label.setAlignment(Qt.AlignCenter)
-        self.video_layout.addWidget(self.video_label)
+        self.video_label.setStyleSheet("background-color: black;")  # Фон для видео
+        self.video_label.setMinimumSize(800, 600)  # Увеличиваем минимальный размер видео
+        self.video_container.layout().addWidget(self.video_label)
 
-        # Индикатор состояния наложения
-        self.overlay_status_label = QLabel("Overlay Inactive")
-        self.overlay_status_label.setAlignment(Qt.AlignCenter)
-        self.overlay_status_label.setStyleSheet("color: red; font-weight: bold;")
-        self.video_layout.addWidget(self.overlay_status_label)
+        # Индикатор состояния наложения в виде точки
+        self.overlay_status_indicator = QLabel()
+        self.overlay_status_indicator.setFixedSize(20, 20)
+        self.overlay_status_indicator.setStyleSheet("background-color: red; border-radius: 10px;")
+        self.overlay_status_indicator.setToolTip("Overlay Inactive")
+        self.video_container.layout().addWidget(self.overlay_status_indicator, alignment=Qt.AlignTop | Qt.AlignRight)
 
+        self.video_layout.addWidget(self.video_container)
         self.layout.addLayout(self.video_layout)
 
         # Выбор камеры
@@ -294,11 +305,11 @@ class FaceSwapApp(QMainWindow):
     def update_overlay_status(self):
         try:
             if self.overlay_active:
-                self.overlay_status_label.setText("Overlay Active")
-                self.overlay_status_label.setStyleSheet("color: green; font-weight: bold;")
+                self.overlay_status_indicator.setStyleSheet("background-color: green; border-radius: 10px;")
+                self.overlay_status_indicator.setToolTip("Overlay Active")
             else:
-                self.overlay_status_label.setText("Overlay Inactive")
-                self.overlay_status_label.setStyleSheet("color: red; font-weight: bold;")
+                self.overlay_status_indicator.setStyleSheet("background-color: red; border-radius: 10px;")
+                self.overlay_status_indicator.setToolTip("Overlay Inactive")
         except Exception as e:
             logger.error("Ошибка при обновлении индикатора состояния наложения", exc_info=True)
 
