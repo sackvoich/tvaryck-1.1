@@ -12,19 +12,22 @@ import logging
 import traceback
 
 # Импортируем функции из main.py
-from main import load_source_image, prepare_source_face, detect_faces_haar, get_available_cameras
+from main import load_source_image, prepare_source_face, detect_faces_haar, get_available_cameras, detect_face_landmarks
+
+# Импортируем функции из fan_landmark.py
+from fan_landmark import initialize_fan
 
 # Настройка логирования
 logger = logging.getLogger()
 logger.setLevel(logging.ERROR)
 
-# Логирование в файл
-file_handler = logging.FileHandler('face_swap_gui.log')
+# Логирование в файл с кодировкой utf-8
+file_handler = logging.FileHandler('face_swap_gui.log', encoding='utf-8')
 file_formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(message)s')
 file_handler.setFormatter(file_formatter)
 logger.addHandler(file_handler)
 
-# Логирование в консоль
+# Логирование в консоль (можно оставить без изменений)
 console_handler = logging.StreamHandler()
 console_formatter = logging.Formatter('%(levelname)s:%(message)s')
 console_handler.setFormatter(console_formatter)
@@ -44,7 +47,7 @@ class FaceSwapApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("Face Swap Application")
         # Увеличиваем размеры окна
-        self.setGeometry(100, 100, 1200, 800)  # Изменено с (1000, 700) на (1200, 800)
+        self.setGeometry(100, 100, 1600, 900)  # Изменено с (1000, 700) на (1600, 900)
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -61,7 +64,7 @@ class FaceSwapApp(QMainWindow):
         self.video_label = QLabel("Video Feed")
         self.video_label.setAlignment(Qt.AlignCenter)
         self.video_label.setStyleSheet("background-color: black;")  # Фон для видео
-        self.video_label.setMinimumSize(800, 600)  # Увеличиваем минимальный размер видео
+        self.video_label.setMinimumSize(1440, 810)  # Увеличиваем минимальный размер видео
         self.video_container.layout().addWidget(self.video_label)
 
         # Индикатор состояния наложения в виде точки
@@ -78,6 +81,17 @@ class FaceSwapApp(QMainWindow):
         self.camera_select = QComboBox()
         self.layout.addWidget(self.camera_select)
         self.populate_camera_select()
+
+        # Выбор метода обнаружения ключевых точек
+        self.method_layout = QHBoxLayout()
+        self.method_label = QLabel("Выберите метод обнаружения ключевых точек лица:")
+        self.method_select = QComboBox()
+        self.method_select.addItem("Face Recognition", "face_recognition")
+        self.method_select.addItem("FAN", "fan")
+        self.method_select.setCurrentIndex(0)  # Устанавливаем метод по умолчанию
+        self.method_layout.addWidget(self.method_label)
+        self.method_layout.addWidget(self.method_select)
+        self.layout.addLayout(self.method_layout)
 
         # Кнопки управления
         self.buttons_layout = QHBoxLayout()
@@ -115,6 +129,20 @@ class FaceSwapApp(QMainWindow):
 
         self.overlay_active = False  # Изначально наложение не активно
 
+        # Инициализация модели FAN
+        self.fan = None
+        if self.method_select.currentData() == 'fan':
+            try:
+                self.fan = initialize_fan()
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось инициализировать FAN: {e}")
+
+        # Отслеживание изменения метода
+        self.method_select.currentIndexChanged.connect(self.change_method)
+
+        # Текущий выбранный метод
+        self.current_method = self.method_select.currentData()
+
     def populate_camera_select(self):
         try:
             cameras = get_available_cameras()
@@ -143,9 +171,22 @@ class FaceSwapApp(QMainWindow):
             logger.error("Ошибка при смене камеры", exc_info=True)
             QMessageBox.critical(self, "Ошибка", f"Не удалось сменить камеру: {e}")
 
+    def change_method(self):
+        try:
+            self.current_method = self.method_select.currentData()
+            if self.current_method == 'fan' and self.fan is None:
+                self.fan = initialize_fan()
+            elif self.current_method != 'fan' and self.fan is not None:
+                self.fan = None  # Освобождаем ресурсы, если метод изменился
+            QMessageBox.information(self, "Метод изменен", f"Выбран метод: {self.method_select.currentText()}")
+        except Exception as e:
+            logger.error("Ошибка при изменении метода обнаружения", exc_info=True)
+            QMessageBox.critical(self, "Ошибка", f"Не удалось изменить метод обнаружения: {e}")
+
     def load_source(self):
         try:
-            self.source_image, self.source_face_landmarks = load_source_image()
+            selected_method = self.current_method
+            self.source_image, self.source_face_landmarks = load_source_image(method=selected_method, fa=self.fan)
             if self.source_image is not None and self.source_face_landmarks is not None:
                 self.source_face, self.source_mask, self.source_points = prepare_source_face(
                     self.source_image, self.source_face_landmarks)
@@ -215,67 +256,59 @@ class FaceSwapApp(QMainWindow):
                 logger.error("Не удалось прочитать кадр из видеопотока.")
                 return
 
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            faces = detect_faces_haar(frame, self.face_cascade)
+            if self.current_method == 'fan':
+                face_landmarks_list = detect_face_landmarks(frame_rgb, method=self.current_method, fa=self.fan)
+            else:
+                face_landmarks_list = detect_face_landmarks(frame_rgb, method=self.current_method)
 
             if self.source_face is not None and self.source_mask is not None and self.overlay_active:
                 try:
-                    for (x, y, w, h) in faces:
-                        face_region = frame[y:y+h, x:x+w]
-                        face_landmarks_list = face_recognition.face_landmarks(face_region)
+                    for face_landmarks in face_landmarks_list:
+                        # Получаем точки лица
+                        target_points = np.array(
+                            face_landmarks['chin'] +
+                            face_landmarks['left_eyebrow'] +
+                            face_landmarks['right_eyebrow'] +
+                            face_landmarks['nose_bridge'] +
+                            face_landmarks['nose_tip'] +
+                            face_landmarks['left_eye'] +
+                            face_landmarks['right_eye'] +
+                            face_landmarks['top_lip'] +
+                            face_landmarks['bottom_lip']
+                        )
 
-                        for face_landmarks in face_landmarks_list:
-                            # Корректируем координаты ключевых точек
-                            for feature in face_landmarks:
-                                for i in range(len(face_landmarks[feature])):
-                                    face_landmarks[feature][i] = (
-                                        face_landmarks[feature][i][0] + x,
-                                        face_landmarks[feature][i][1] + y
-                                    )
+                        # Проверяем, находятся ли точки лица в пределах кадра
+                        if not (0 <= np.min(target_points[:, 0]) < frame_rgb.shape[1] and
+                                0 <= np.min(target_points[:, 1]) < frame_rgb.shape[0] and
+                                0 <= np.max(target_points[:, 0]) < frame_rgb.shape[1] and
+                                0 <= np.max(target_points[:, 1]) < frame_rgb.shape[0]):
+                            continue
 
-                            target_points = np.array(
-                                face_landmarks['chin'] +
-                                face_landmarks['left_eyebrow'] +
-                                face_landmarks['right_eyebrow'] +
-                                face_landmarks['nose_bridge'] +
-                                face_landmarks['nose_tip'] +
-                                face_landmarks['left_eye'] +
-                                face_landmarks['right_eye'] +
-                                face_landmarks['top_lip'] +
-                                face_landmarks['bottom_lip']
+                        try:
+                            M, _ = cv2.findHomography(self.source_points, target_points)
+                            transformed_face = cv2.warpPerspective(
+                                self.source_face, M, (frame_rgb.shape[1], frame_rgb.shape[0])
+                            )
+                            transformed_mask = cv2.warpPerspective(
+                                self.source_mask, M, (frame_rgb.shape[1], frame_rgb.shape[0])
                             )
 
-                            # Проверяем, находятся ли точки лица в пределах кадра
-                            if not (0 <= np.min(target_points[:, 0]) < frame.shape[1] and
-                                    0 <= np.min(target_points[:, 1]) < frame.shape[0] and
-                                    0 <= np.max(target_points[:, 0]) < frame.shape[1] and
-                                    0 <= np.max(target_points[:, 1]) < frame.shape[0]):
-                                continue
+                            center_point = (int(target_points[:,0].mean()), int(target_points[:,1].mean()))
+                            center_x = max(0, min(center_point[0], frame_rgb.shape[1] - 1))
+                            center_y = max(0, min(center_point[1], frame_rgb.shape[0] - 1))
+                            center_point_corrected = (center_x, center_y)
 
-                            try:
-                                M, _ = cv2.findHomography(self.source_points, target_points)
-                                transformed_face = cv2.warpPerspective(
-                                    self.source_face, M, (frame.shape[1], frame.shape[0])
-                                )
-                                transformed_mask = cv2.warpPerspective(
-                                    self.source_mask, M, (frame.shape[1], frame.shape[0])
-                                )
-
-                                center_point = (int(target_points[:,0].mean()), int(target_points[:,1].mean()))
-                                center_x = max(0, min(center_point[0], frame.shape[1] - 1))
-                                center_y = max(0, min(center_point[1], frame.shape[0] - 1))
-                                center_point_corrected = (center_x, center_y)
-
-                                frame = cv2.seamlessClone(
-                                    transformed_face, frame, transformed_mask, center_point_corrected, cv2.NORMAL_CLONE
-                                )
-                            except Exception as e:
-                                logger.error("Ошибка при трансформации и наложении лица", exc_info=True)
-                                self.overlay_active = False  # Останавливаем наложение
-                                self.update_overlay_status()
-                                QMessageBox.critical(self, "Ошибка", f"Произошла ошибка при наложении лица: {e}")
-                                break  # Прерываем цикл наложения лиц
+                            frame_rgb = cv2.seamlessClone(
+                                transformed_face, frame_rgb, transformed_mask, center_point_corrected, cv2.NORMAL_CLONE
+                            )
+                        except Exception as e:
+                            logger.error("Ошибка при трансформации и наложении лица", exc_info=True)
+                            self.overlay_active = False  # Останавливаем наложение
+                            self.update_overlay_status()
+                            QMessageBox.critical(self, "Ошибка", f"Произошла ошибка при наложении лица: {e}")
+                            break  # Прерываем цикл наложения лиц
 
                 except Exception as e:
                     logger.error("Ошибка при обработке лиц в кадре", exc_info=True)
@@ -283,7 +316,7 @@ class FaceSwapApp(QMainWindow):
                     self.update_overlay_status()
                     QMessageBox.critical(self, "Ошибка", f"Произошла ошибка при обработке лиц: {e}")
 
-            self.display_image(frame)
+            self.display_image(frame_rgb)
         except Exception as e:
             logger.error("Непредвиденная ошибка в методе update_frame", exc_info=True)
             QMessageBox.critical(self, "Ошибка", f"Произошла непредвиденная ошибка: {e}")
