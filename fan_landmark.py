@@ -6,7 +6,7 @@ import torch  # Добавляем импорт torch для проверки д
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.WARNING)
 handler = logging.FileHandler('fan_landmark.log', encoding='utf-8')  # Указание кодировки utf-8
 formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(message)s')
 handler.setFormatter(formatter)
@@ -35,19 +35,23 @@ def initialize_fan():
         logger.error("Ошибка при инициализации модели FAN", exc_info=True)
         raise e
 
-def get_landmarks_fan(fa, image):
+def get_landmarks_fan(fa, image, source=False):
     """
     Обнаруживает ключевые точки лица с использованием FAN.
     
     :param fa: Инициализированный объект face_alignment.FaceAlignment
     :param image: Изображение в формате NumPy массива (RGB).
+    :param source: Флаг, указывающий, является ли изображение исходным.
     :return: Список словарей с ключевыми точками.
     """
     try:
         preds = fa.get_landmarks(image)
         landmarks = []
         if preds is not None:
-            logger.info(f"FAN обнаружил {len(preds)} лицо(а).")
+            if source:
+                logger.info(f"Исходное изображение: обнаружено {len(preds)} лицо(а).")
+            else:
+                logger.info(f"Видеопоток: обнаружено {len(preds)} лицо(а).")
             for pred in preds:
                 landmarks_dict = {
                     'chin': list(map(tuple, pred[0:17])),
@@ -62,7 +66,10 @@ def get_landmarks_fan(fa, image):
                 }
                 landmarks.append(landmarks_dict)
         else:
-            logger.warning("FAN не обнаружил лиц в изображении.")
+            if source:
+                logger.warning("FAN не обнаружил лиц в исходном изображении.")
+            else:
+                logger.warning("FAN не обнаружил лиц в кадре видеопотока.")
         return landmarks
     except Exception as e:
         logger.error("Ошибка при обнаружении ключевых точек с помощью FAN", exc_info=True)

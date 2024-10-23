@@ -17,19 +17,18 @@ formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-def detect_face_landmarks(image, method='face_recognition', fa=None):
+def detect_face_landmarks(image, method='face_recognition', fa=None, source=False):
     if method == 'face_recognition':
         return face_recognition.face_landmarks(image)
     elif method == 'fan':
         if fa is None:
             logger.error("Модель FAN не инициализирована.")
             return []
-        return get_landmarks_fan(fa, image)
+        return get_landmarks_fan(fa, image, source=source)  # Передача параметра source
     else:
         raise ValueError(f"Неизвестный метод обнаружения ключевых точек: {method}")
 
-
-def load_source_image(method='face_recognition', fa=None):
+def load_source_image(method='face_recognition', fa=None, source=False):
     Tk().withdraw()
     source_image_path = askopenfilename(title='Выберите изображение лица')
     if not source_image_path:
@@ -38,7 +37,7 @@ def load_source_image(method='face_recognition', fa=None):
         return None, None
     try:
         source_image = face_recognition.load_image_file(source_image_path)
-        source_face_landmarks = detect_face_landmarks(source_image, method=method, fa=fa)
+        source_face_landmarks = detect_face_landmarks(source_image, method=method, fa=fa, source=source)  # Передача source
         if len(source_face_landmarks) == 0:
             logger.error("No faces found in the source image")
             print("No faces found in the source image")
@@ -96,7 +95,6 @@ def prepare_source_face(source_image, source_face_landmarks):
         logger.error("Ошибка при подготовке исходного лица", exc_info=True)
         print(f"Ошибка при подготовке исходного лица: {e}")
         return None, None, None
-
 
 def detect_faces_haar(frame, face_cascade):
     try:

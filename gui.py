@@ -177,7 +177,9 @@ class FaceSwapApp(QMainWindow):
             if self.current_method == 'fan' and self.fan is None:
                 self.fan = initialize_fan()
             elif self.current_method != 'fan' and self.fan is not None:
-                self.fan = None  # Освобождаем ресурсы, если метод изменился
+                # Освобождаем ресурсы, если метод изменился
+                del self.fan
+                self.fan = None
             QMessageBox.information(self, "Метод изменен", f"Выбран метод: {self.method_select.currentText()}")
         except Exception as e:
             logger.error("Ошибка при изменении метода обнаружения", exc_info=True)
@@ -186,7 +188,7 @@ class FaceSwapApp(QMainWindow):
     def load_source(self):
         try:
             selected_method = self.current_method
-            self.source_image, self.source_face_landmarks = load_source_image(method=selected_method, fa=self.fan)
+            self.source_image, self.source_face_landmarks = load_source_image(method=selected_method, fa=self.fan, source=True)
             if self.source_image is not None and self.source_face_landmarks is not None:
                 self.source_face, self.source_mask, self.source_points = prepare_source_face(
                     self.source_image, self.source_face_landmarks)
@@ -258,10 +260,11 @@ class FaceSwapApp(QMainWindow):
 
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
+            # Обнаружение лиц только в видеопотоке
             if self.current_method == 'fan':
-                face_landmarks_list = detect_face_landmarks(frame_rgb, method=self.current_method, fa=self.fan)
+                face_landmarks_list = detect_face_landmarks(frame_rgb, method=self.current_method, fa=self.fan, source=False)
             else:
-                face_landmarks_list = detect_face_landmarks(frame_rgb, method=self.current_method)
+                face_landmarks_list = detect_face_landmarks(frame_rgb, method=self.current_method, source=False)
 
             if self.source_face is not None and self.source_mask is not None and self.overlay_active:
                 try:
@@ -288,6 +291,10 @@ class FaceSwapApp(QMainWindow):
 
                         try:
                             M, _ = cv2.findHomography(self.source_points, target_points)
+                            if M is None:
+                                logger.warning("Не удалось найти гомографию для наложения лица.")
+                                continue
+
                             transformed_face = cv2.warpPerspective(
                                 self.source_face, M, (frame_rgb.shape[1], frame_rgb.shape[0])
                             )
@@ -295,11 +302,13 @@ class FaceSwapApp(QMainWindow):
                                 self.source_mask, M, (frame_rgb.shape[1], frame_rgb.shape[0])
                             )
 
+                            # Вычисляем центр области наложения
                             center_point = (int(target_points[:,0].mean()), int(target_points[:,1].mean()))
                             center_x = max(0, min(center_point[0], frame_rgb.shape[1] - 1))
                             center_y = max(0, min(center_point[1], frame_rgb.shape[0] - 1))
                             center_point_corrected = (center_x, center_y)
 
+                            # Накладываем лицо
                             frame_rgb = cv2.seamlessClone(
                                 transformed_face, frame_rgb, transformed_mask, center_point_corrected, cv2.NORMAL_CLONE
                             )
