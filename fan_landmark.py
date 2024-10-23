@@ -2,6 +2,7 @@ import face_alignment
 import numpy as np
 import cv2
 import logging
+import torch  # Добавляем импорт torch для проверки доступности CUDA
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
@@ -18,7 +19,17 @@ def initialize_fan():
     :return: Объект face_alignment.FaceAlignment
     """
     try:
-        fa = face_alignment.FaceAlignment(face_alignment.LandmarksType.TWO_D, device='cpu', flip_input=False)
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if device == 'cuda':
+            logger.info("CUDA доступен. Инициализация модели на GPU.")
+        else:
+            logger.info("CUDA недоступен. Инициализация модели на CPU.")
+        
+        fa = face_alignment.FaceAlignment(
+            face_alignment.LandmarksType.TWO_D, 
+            device=device, 
+            flip_input=False
+        )
         return fa
     except Exception as e:
         logger.error("Ошибка при инициализации модели FAN", exc_info=True)
