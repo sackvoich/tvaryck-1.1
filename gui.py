@@ -302,22 +302,39 @@ class FaceSwapApp(QMainWindow):
                                 self.source_mask, M, (frame_rgb.shape[1], frame_rgb.shape[0])
                             )
 
+                            # Проверяем размеры трансформированного лица и маски
+                            if transformed_face.size == 0 or transformed_mask.size == 0:
+                                logger.warning("Трансформированное лицо или маска имеют нулевой размер.")
+                                continue
+
                             # Вычисляем центр области наложения
                             center_point = (int(target_points[:,0].mean()), int(target_points[:,1].mean()))
                             center_x = max(0, min(center_point[0], frame_rgb.shape[1] - 1))
                             center_y = max(0, min(center_point[1], frame_rgb.shape[0] - 1))
                             center_point_corrected = (center_x, center_y)
 
-                            # Накладываем лицо
-                            frame_rgb = cv2.seamlessClone(
-                                transformed_face, frame_rgb, transformed_mask, center_point_corrected, cv2.NORMAL_CLONE
-                            )
+                            # Проверяем, что центр внутри изображения
+                            if not (0 <= center_x < frame_rgb.shape[1] and 0 <= center_y < frame_rgb.shape[0]):
+                                logger.warning("Центр области наложения вне границ кадра.")
+                                continue
+
+                            # Проверяем, что маска имеет ненулевые значения
+                            if cv2.countNonZero(transformed_mask) == 0:
+                                logger.warning("Маска не имеет ненулевых пикселей.")
+                                continue
+
+                            # Накладываем лицо с обработкой исключений
+                            try:
+                                frame_rgb = cv2.seamlessClone(
+                                    transformed_face, frame_rgb, transformed_mask, center_point_corrected, cv2.NORMAL_CLONE
+                                )
+                            except cv2.error as e:
+                                logger.warning(f"Ошибка в cv2.seamlessClone: {e}")
+                                continue  # Переходим к следующему лицу
+
                         except Exception as e:
                             logger.error("Ошибка при трансформации и наложении лица", exc_info=True)
-                            self.overlay_active = False  # Останавливаем наложение
-                            self.update_overlay_status()
-                            QMessageBox.critical(self, "Ошибка", f"Произошла ошибка при наложении лица: {e}")
-                            break  # Прерываем цикл наложения лиц
+                            continue  # Переходим к следующему лицу
 
                 except Exception as e:
                     logger.error("Ошибка при обработке лиц в кадре", exc_info=True)
