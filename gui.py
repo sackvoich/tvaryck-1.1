@@ -11,29 +11,21 @@ import face_recognition
 import logging
 import traceback
 
-# Импортируем функции из main.py
 from main import load_source_image, prepare_source_face, detect_faces_haar, get_available_cameras, detect_face_landmarks
-
-# Импортируем функции из fan_landmark.py
 from fan_landmark import initialize_fan
 
 # Настройка логирования
 logger = logging.getLogger()
 logger.setLevel(logging.ERROR)
-
-# Логирование в файл с кодировкой utf-8
 file_handler = logging.FileHandler('face_swap_gui.log', encoding='utf-8')
 file_formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(message)s')
 file_handler.setFormatter(file_formatter)
 logger.addHandler(file_handler)
-
-# Логирование в консоль (можно оставить без изменений)
 console_handler = logging.StreamHandler()
 console_formatter = logging.Formatter('%(levelname)s:%(message)s')
 console_handler.setFormatter(console_formatter)
 logger.addHandler(console_handler)
 
-# Глобальная обработка непойманных исключений
 def exception_hook(exctype, value, tb):
     logger.error("Непойманное исключение", exc_info=(exctype, value, tb))
     QMessageBox.critical(None, "Непойманное исключение",
@@ -46,69 +38,77 @@ class FaceSwapApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Face Swap Application")
-        # Увеличиваем размеры окна
-        self.setGeometry(100, 100, 1600, 900)  # Изменено с (1000, 700) на (1600, 900)
+        self.setGeometry(100, 100, 1600, 900)
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.layout = QVBoxLayout(self.central_widget)
+        self.layout.setContentsMargins(20, 20, 20, 20)
+        self.central_widget.setStyleSheet("background-color: #f5f5f5;")  # Задаем фон
+
+        # Заголовок приложения
+        self.title_label = QLabel("Face Swap Application")
+        self.title_label.setAlignment(Qt.AlignCenter)
+        self.title_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #333;")
+        self.layout.addWidget(self.title_label)
 
         # Верхняя часть: видео и индикатор
-        self.video_layout = QHBoxLayout()
-
-        # Контейнер для видео и индикатора
-        self.video_container = QWidget()
-        self.video_container.setLayout(QHBoxLayout())
-        self.video_container.layout().setContentsMargins(0, 0, 0, 0)
-
+        self.video_layout = QVBoxLayout()
         self.video_label = QLabel("Video Feed")
         self.video_label.setAlignment(Qt.AlignCenter)
-        self.video_label.setStyleSheet("background-color: black;")  # Фон для видео
-        self.video_label.setMinimumSize(1440, 810)  # Увеличиваем минимальный размер видео
-        self.video_container.layout().addWidget(self.video_label)
+        self.video_label.setStyleSheet("background-color: black; border-radius: 10px;")
+        self.video_label.setMinimumSize(1440, 810)
+        self.video_layout.addWidget(self.video_label)
 
-        # Индикатор состояния наложения в виде точки
         self.overlay_status_indicator = QLabel()
         self.overlay_status_indicator.setFixedSize(20, 20)
         self.overlay_status_indicator.setStyleSheet("background-color: red; border-radius: 10px;")
         self.overlay_status_indicator.setToolTip("Overlay Inactive")
-        self.video_container.layout().addWidget(self.overlay_status_indicator, alignment=Qt.AlignTop | Qt.AlignRight)
+        self.overlay_status_indicator.setAlignment(Qt.AlignTop | Qt.AlignRight)
 
-        self.video_layout.addWidget(self.video_container)
+        self.video_layout.addWidget(self.overlay_status_indicator, alignment=Qt.AlignRight | Qt.AlignTop)
         self.layout.addLayout(self.video_layout)
 
         # Выбор камеры
         self.camera_select = QComboBox()
+        self.camera_select.setStyleSheet("padding: 10px; font-size: 16px;")
         self.layout.addWidget(self.camera_select)
         self.populate_camera_select()
 
         # Выбор метода обнаружения ключевых точек
         self.method_layout = QHBoxLayout()
         self.method_label = QLabel("Выберите метод обнаружения ключевых точек лица:")
+        self.method_label.setStyleSheet("font-size: 16px;")
         self.method_select = QComboBox()
         self.method_select.addItem("Face Recognition", "face_recognition")
         self.method_select.addItem("FAN", "fan")
-        self.method_select.setCurrentIndex(0)  # Устанавливаем метод по умолчанию
+        self.method_select.setCurrentIndex(0)
+        self.method_select.setStyleSheet("padding: 10px; font-size: 16px;")  # Обновленный стиль
         self.method_layout.addWidget(self.method_label)
         self.method_layout.addWidget(self.method_select)
         self.layout.addLayout(self.method_layout)
 
         # Кнопки управления
         self.buttons_layout = QHBoxLayout()
+        button_style = "QPushButton { padding: 10px; font-size: 16px; background-color: #0078D7; color: white; border: none; border-radius: 5px; } QPushButton:hover { background-color: #005A9E; }"
 
         self.load_source_button = QPushButton("Load Source Image")
+        self.load_source_button.setStyleSheet(button_style)
         self.load_source_button.clicked.connect(self.load_source)
         self.buttons_layout.addWidget(self.load_source_button)
 
         self.start_button = QPushButton("Start Face Swap")
+        self.start_button.setStyleSheet(button_style)
         self.start_button.clicked.connect(self.start_face_swap)
         self.buttons_layout.addWidget(self.start_button)
 
         self.stop_button = QPushButton("Stop Face Swap")
+        self.stop_button.setStyleSheet(button_style)
         self.stop_button.clicked.connect(self.stop_face_swap)
         self.buttons_layout.addWidget(self.stop_button)
 
         self.restart_button = QPushButton("Restart Overlay")
+        self.restart_button.setStyleSheet(button_style)
         self.restart_button.clicked.connect(self.restart_overlay)
         self.buttons_layout.addWidget(self.restart_button)
 
@@ -126,8 +126,7 @@ class FaceSwapApp(QMainWindow):
         self.timer.timeout.connect(self.update_frame)
 
         self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-
-        self.overlay_active = False  # Изначально наложение не активно
+        self.overlay_active = False
 
         # Инициализация модели FAN
         self.fan = None
@@ -137,10 +136,7 @@ class FaceSwapApp(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось инициализировать FAN: {e}")
 
-        # Отслеживание изменения метода
         self.method_select.currentIndexChanged.connect(self.change_method)
-
-        # Текущий выбранный метод
         self.current_method = self.method_select.currentData()
 
     def populate_camera_select(self):
@@ -177,7 +173,6 @@ class FaceSwapApp(QMainWindow):
             if self.current_method == 'fan' and self.fan is None:
                 self.fan = initialize_fan()
             elif self.current_method != 'fan' and self.fan is not None:
-                # Освобождаем ресурсы, если метод изменился
                 del self.fan
                 self.fan = None
             QMessageBox.information(self, "Метод изменен", f"Выбран метод: {self.method_select.currentText()}")
@@ -195,11 +190,13 @@ class FaceSwapApp(QMainWindow):
                 if self.source_face is None or self.source_mask is None or self.source_points is None:
                     QMessageBox.critical(self, "Ошибка", "Не удалось подготовить исходное лицо.")
                     return
-                self.overlay_active = True  # Включаем наложение при успешной загрузке
+                self.overlay_active = True
                 self.update_overlay_status()
-                QMessageBox.information(self, "Успех", "Исходное изображение загружено успешно.")
+                QMessageBox.information(self, "Информация", "Исходное изображение успешно загружено.")
+            else:
+                QMessageBox.warning(self, "Предупреждение", "Не удалось загрузить исходное изображение.")
         except Exception as e:
-            logger.error("Ошибка при загрузке исходного изображения через GUI", exc_info=True)
+            logger.error("Ошибка при загрузке исходного изображения", exc_info=True)
             QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить исходное изображение: {e}")
 
     def start_face_swap(self):
@@ -214,9 +211,9 @@ class FaceSwapApp(QMainWindow):
             if not self.video_capture.isOpened():
                 QMessageBox.critical(self, "Ошибка", "Камера не открыта.")
                 return
-            self.overlay_active = True  # Включаем наложение при старте
+            self.overlay_active = True
             self.update_overlay_status()
-            self.timer.start(30)  # Обновление каждые 30 мс (примерно 33 кадра в секунду)
+            self.timer.start(30)
         except Exception as e:
             logger.error("Ошибка при запуске наложения лица", exc_info=True)
             QMessageBox.critical(self, "Ошибка", f"Не удалось запустить наложение лица: {e}")
@@ -260,7 +257,6 @@ class FaceSwapApp(QMainWindow):
 
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            # Обнаружение лиц только в видеопотоке
             if self.current_method == 'fan':
                 face_landmarks_list = detect_face_landmarks(frame_rgb, method=self.current_method, fa=self.fan, source=False)
             else:
@@ -269,7 +265,6 @@ class FaceSwapApp(QMainWindow):
             if self.source_face is not None and self.source_mask is not None and self.overlay_active:
                 try:
                     for face_landmarks in face_landmarks_list:
-                        # Получаем точки лица
                         target_points = np.array(
                             face_landmarks['chin'] +
                             face_landmarks['left_eyebrow'] +
@@ -282,7 +277,6 @@ class FaceSwapApp(QMainWindow):
                             face_landmarks['bottom_lip']
                         )
 
-                        # Проверяем, находятся ли точки лица в пределах кадра
                         if not (0 <= np.min(target_points[:, 0]) < frame_rgb.shape[1] and
                                 0 <= np.min(target_points[:, 1]) < frame_rgb.shape[0] and
                                 0 <= np.max(target_points[:, 0]) < frame_rgb.shape[1] and
@@ -302,46 +296,43 @@ class FaceSwapApp(QMainWindow):
                                 self.source_mask, M, (frame_rgb.shape[1], frame_rgb.shape[0])
                             )
 
-                            # Проверяем размеры трансформированного лица и маски
                             if transformed_face.size == 0 or transformed_mask.size == 0:
                                 logger.warning("Трансформированное лицо или маска имеют нулевой размер.")
                                 continue
 
-                            # Вычисляем центр области наложения
-                            center_point = (int(target_points[:,0].mean()), int(target_points[:,1].mean()))
+                            center_point = (int(target_points[:, 0].mean()), int(target_points[:, 1].mean()))
                             center_x = max(0, min(center_point[0], frame_rgb.shape[1] - 1))
                             center_y = max(0, min(center_point[1], frame_rgb.shape[0] - 1))
                             center_point_corrected = (center_x, center_y)
 
-                            # Проверяем, что центр внутри изображения
                             if not (0 <= center_x < frame_rgb.shape[1] and 0 <= center_y < frame_rgb.shape[0]):
                                 logger.warning("Центр области наложения вне границ кадра.")
                                 continue
 
-                            # Проверяем, что маска имеет ненулевые значения
                             if cv2.countNonZero(transformed_mask) == 0:
                                 logger.warning("Маска не имеет ненулевых пикселей.")
                                 continue
 
-                            # Накладываем лицо с обработкой исключений
                             try:
                                 frame_rgb = cv2.seamlessClone(
                                     transformed_face, frame_rgb, transformed_mask, center_point_corrected, cv2.NORMAL_CLONE
                                 )
                             except cv2.error as e:
                                 logger.warning(f"Ошибка в cv2.seamlessClone: {e}")
-                                continue  # Переходим к следующему лицу
+                                continue
 
                         except Exception as e:
                             logger.error("Ошибка при трансформации и наложении лица", exc_info=True)
-                            continue  # Переходим к следующему лицу
+                            continue
 
                 except Exception as e:
                     logger.error("Ошибка при обработке лиц в кадре", exc_info=True)
-                    self.overlay_active = False  # Останавливаем наложение
+                    self.overlay_active = False
                     self.update_overlay_status()
                     QMessageBox.critical(self, "Ошибка", f"Произошла ошибка при обработке лиц: {e}")
 
+            # Растягиваем изображение до пропорций 16:9
+            frame_rgb = cv2.resize(frame_rgb, (1440, 810), interpolation=cv2.INTER_LINEAR)
             self.display_image(frame_rgb)
         except Exception as e:
             logger.error("Непредвиденная ошибка в методе update_frame", exc_info=True)
