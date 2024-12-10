@@ -324,12 +324,6 @@ class FaceSwapApp(QMainWindow):
             # Преобразуем кадр в RGB после MediaPipe
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            # Визуализация ключевых точек только в режимах "Face Only" и "Both"
-            if keypoints is not None and (self.face_overlay_radio.isChecked() or self.both_overlays_radio.isChecked()):
-                for i, (x, y) in enumerate(keypoints):
-                    cv2.circle(frame_rgb, (int(x), int(y)), 5, (0, 255, 0), -1)
-                    cv2.putText(frame_rgb, str(i), (int(x), int(y)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-
             # Обнаружение ключевых точек лица
             if self.current_method == 'fan':
                 face_landmarks_list = detect_face_landmarks(frame_rgb, method=self.current_method, fa=self.fan, source=False)
