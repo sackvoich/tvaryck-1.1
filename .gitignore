@@ -3,6 +3,7 @@ __pycache__
 SimSwap
 clothes_overlay.log
 face_swap_gui.log
+face_swap.log
 fan_landmark.log
 pose_estimation.log
 test.py
