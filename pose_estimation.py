@@ -11,7 +11,7 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 class PoseEstimator:
-    def __init__(self, static_image_mode=False, model_complexity=1, min_detection_confidence=0.7, min_tracking_confidence=0.7):
+    def __init__(self, static_image_mode=False, model_complexity=2, min_detection_confidence=0.7, min_tracking_confidence=0.7):
         self.mp_pose = mp.solutions.pose
         self.pose = self.mp_pose.Pose(
             static_image_mode=static_image_mode,
