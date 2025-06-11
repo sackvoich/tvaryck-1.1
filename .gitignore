@@ -1,6 +1,7 @@
 .venv
 __pycache__
 SimSwap
+runs
 clothes_overlay.log
 face_swap_gui.log
 face_swap.log

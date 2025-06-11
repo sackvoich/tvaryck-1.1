@@ -6,7 +6,7 @@ import torch  # Добавляем импорт torch для проверки д
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.WARNING)
+logger.setLevel(logging.INFO)
 handler = logging.FileHandler('fan_landmark.log', encoding='utf-8')  # Указание кодировки utf-8
 formatter = logging.Formatter('%(asctime)s:%(levelname)s:%(message)s')
 handler.setFormatter(formatter)
@@ -19,7 +19,7 @@ def initialize_fan():
     :return: Объект face_alignment.FaceAlignment
     """
     try:
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        device = 'cuda' if torch.cuda.is_available() == True else 'cpu'
         if device == 'cuda':
             logger.info("CUDA доступен. Инициализация модели на GPU.")
         else:
